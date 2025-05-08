@@ -40,6 +40,7 @@ pbmc
 ```
 
 ## Optional for learning
+
 ### Let's examine a few genes in the first thirty cells
 
 ```{r}
@@ -88,65 +89,54 @@ dense.size/sparse.size
 The steps below encompass the standard pre-processing workflow for scRNA-seq data in Seurat. These represent the selection and filtration of cells based on QC metrics, data normalization and scaling, and the detection of highly variable features.
 
 # QC and selecting cells for further analysis
+
 Seurat allows you to easily explore QC metrics and filter cells based on any user-defined criteria. A few QC metrics commonly used by the community include:
 
-- The number of unique genes detected in each cell.
-Low-quality cells or empty droplets will often have very few genes
-Cell doublets or multiplets may exhibit an aberrantly high gene count
+-   The number of unique genes detected in each cell. Low-quality cells or empty droplets will often have very few genes Cell doublets or multiplets may exhibit an aberrantly high gene count
 
-- Similarly, the total number of molecules detected within a cell (correlates strongly with unique genes)
+-   Similarly, the total number of molecules detected within a cell (correlates strongly with unique genes)
 
-- The percentage of reads that map to the mitochondrial genome
-Low-quality / dying cells often exhibit extensive mitochondrial contamination
-We calculate mitochondrial QC metrics with the PercentageFeatureSet() function, which calculates the percentage of counts originating from a set of features
-We use the set of all genes starting with MT- as a set of mitochondrial genes
+-   The percentage of reads that map to the mitochondrial genome Low-quality / dying cells often exhibit extensive mitochondrial contamination We calculate mitochondrial QC metrics with the PercentageFeatureSet() function, which calculates the percentage of counts originating from a set of features We use the set of all genes starting with MT- as a set of mitochondrial genes
+
 ```{r}
 # The [[ operator can add columns to object metadata. This is a great place to stash QC stats
+
 pbmc[["percent.mt"]] <- PercentageFeatureSet(pbmc, pattern = "^MT-")
 head(pbmc)
 ```
 
 ## optional for learning: where are QC metrics stored in Seurat?
-The number of unique genes and total molecules are automatically calculated during CreateSeuratObject()
-You can find them stored in the object meta data
+
+The number of unique genes and total molecules are automatically calculated during CreateSeuratObject() You can find them stored in the object meta data
+
 ```{r}
 # Show QC metrics for the first 5 cells
 head(pbmc@meta.data, 5)
 
 ```
-In the example below, we visualize QC metrics, and use these to filter cells.
-- we filter cells that have unique feature counts over 2,500 or less than 200
-- we filter cells that have >5% mitocrondrial counts
+
+In the example below, we visualize QC metrics, and use these to filter cells. - we filter cells that have unique feature counts over 2,500 or less than 200 - we filter cells that have \>5% mitocrondrial counts
+
 ```{r}
 # visualize QC metrics as a violin plot
 VlnPlot(pbmc, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
 ```
-What is a violin plot?
-a violin plot combines:
-- a boxplot (shows median, interquartile range)
-- a kernel density plot (shows distribution shape)
-so the wider the violin, the more cells have values in that range.
 
-How to read each plot:
-1. nFeature_RNA = number of detected genes per cell
-X-axis: dataset (here only "pbmc3k)
-Y-axis: number of genes
-Interpretation:
-- most cells have ~500-2000 genes detected
-- some cells have <200 genes (likely poor quality or empty droplets)
-- some cells have >2,500, which could indicate multiplets (doublets)
-Filtering rule: Keep cells with 200-2,500 features
+What is a violin plot? a violin plot combines: - a boxplot (shows median, interquartile range) - a kernel density plot (shows distribution shape) so the wider the violin, the more cells have values in that range.
 
-2. nCount_RNA = total counts per cell (UMI counts)
-- reflects total RNA captured
-- high counts with high nFeature_RNA = good
-- high counts but low gene diversity may indicate noisy cells
+How to read each plot: 1. nFeature_RNA = number of detected genes per cell X-axis: dataset (here only "pbmc3k) Y-axis: number of genes Interpretation: - most cells have \~500-2000 genes detected - some cells have \<200 genes (likely poor quality or empty droplets) - some cells have \>2,500, which could indicate multiplets (doublets) Filtering rule: Keep cells with 200-2,500 features
 
-3. percent.mt = % of reads mapping to mitochondrial genes
-- high values(>5%) suggest stressed or dying cells
-- most cells have ~0-5%, good!
-- you may want to remove cells with >5%
+2.  nCount_RNA = total counts per cell (UMI counts)
 
+-   reflects total RNA captured
+-   high counts with high nFeature_RNA = good
+-   high counts but low gene diversity may indicate noisy cells
+
+3.  percent.mt = % of reads mapping to mitochondrial genes
+
+-   high values(\>5%) suggest stressed or dying cells
+-   most cells have \~0-5%, good!
+-   you may want to remove cells with \>5%
 
 ```{r}
 # FeatureScatter is typically used to visualize feature-feature relationships, but can be used
@@ -155,87 +145,75 @@ plot1 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "percent.mt")
 plot2 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
 plot1 + plot2
 ```
+
 This plot uses FeatureScatter() to visualize relationships between QC metrics across cells. Here’s how to interpret the two scatter plots:
 
-1. nCount_RNA vs percent.mt
-X-axis: total UMI counts per cell
-Y-axis: % mitochondrial gene expression
-Interpretation:
-- most cells cluster below 5% mitochondrial content, as expected.
-- some cells with high total counts also show high mitochondrial percentages -> could be dying or stressed cells.
-- weak correlation (-0.13): there's no. strong relationship between total RNA and mitochondrial %.
+1.  nCount_RNA vs percent.mt X-axis: total UMI counts per cell Y-axis: % mitochondrial gene expression Interpretation:
 
-This supports the use of percent.mt < 5 as a filtering threshold to exclude low-quality cells.
+-   most cells cluster below 5% mitochondrial content, as expected.
+-   some cells with high total counts also show high mitochondrial percentages -\> could be dying or stressed cells.
+-   weak correlation (-0.13): there's no. strong relationship between total RNA and mitochondrial %.
 
+This supports the use of percent.mt \< 5 as a filtering threshold to exclude low-quality cells.
 
-2. nCount_RNA vs nFeature_RNA
-X-axis: total counts
-Y-axis: number of detected genes
-Interpretation:
-- strong positive correlation (0.95): more total RNA -> more genes detected.
-- however, some outliers have high total RNA but relatively low gene counts, suggesting:
-a. Ambient RNA (free-floating RNA molecules present in the cell suspension or droplets during single-cell RNA-seq experiments, not coming from inside a cell, can be from broken or lysed cells, cell debris, or dead cells).
+2.  nCount_RNA vs nFeature_RNA X-axis: total counts Y-axis: number of detected genes Interpretation:
 
-Why is ambient RNA a problem?
-It introduces false positive gene expression.
-It may inflate UMI counts without increasing gene diversity.
-It causes contamination — e.g., mitochondrial RNA in non-mitochondrial cells.
+-   strong positive correlation (0.95): more total RNA -\> more genes detected.
+-   however, some outliers have high total RNA but relatively low gene counts, suggesting:
 
-How to spot it?
-Cells with high nCount_RNA but low nFeature_RNA (many reads but few genes).
-"Empty" droplets with detectable RNA.
+a.  Ambient RNA (free-floating RNA molecules present in the cell suspension or droplets during single-cell RNA-seq experiments, not coming from inside a cell, can be from broken or lysed cells, cell debris, or dead cells).
 
-Tools to correct for ambient RNA:
-- Seurat filters some contaminated cells via QC thresholds.
+Why is ambient RNA a problem? It introduces false positive gene expression. It may inflate UMI counts without increasing gene diversity. It causes contamination — e.g., mitochondrial RNA in non-mitochondrial cells.
+
+How to spot it? Cells with high nCount_RNA but low nFeature_RNA (many reads but few genes). "Empty" droplets with detectable RNA.
+
+Tools to correct for ambient RNA: 
+- Seurat filters some contaminated cells via QC thresholds. 
 - SoupX, CellBender, and DecontX are specialized tools to identify and remove ambient RNA contamination.
 
-b. Doublets
-c. Over-sequencing of few transcripts
+b.  Doublets
+c.  Over-sequencing of few transcripts
 
-This justifies filtering cells with too few or too many genes:
-nFeature_RNA > 200 & < 2500
-
+This justifies filtering cells with too few or too many genes: nFeature_RNA \> 200 & \< 2500
 
 Filtering:
+
 ```{r}
 pbmc <- subset(pbmc, subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mt < 5)
 pbmc
 ```
-This keeps cells that:
-- Have enough genes to be valid
-- Are not doublets
-- Are not stressed or dying
 
+This keeps cells that: - Have enough genes to be valid - Are not doublets - Are not stressed or dying
 
 # Normalizing the data
-After removing unwanted cells from the dataset, the next step is to normalize the data. By default, we employ a global-scaling normalization method “LogNormalize” that normalizes the feature expression measurements for each cell by the total expression, multiplies this by a scale factor (10,000 by default), and log-transforms the result. In Seurat v5, Normalized values are stored in pbmc[["RNA"]]$data.
+
+After removing unwanted cells from the dataset, the next step is to normalize the data. By default, we employ a global-scaling normalization method “LogNormalize” that normalizes the feature expression measurements for each cell by the total expression, multiplies this by a scale factor (10,000 by default), and log-transforms the result. In Seurat v5, Normalized values are stored in pbmc[["RNA"]]\$data.
+
 ```{r}
 pbmc <- NormalizeData(pbmc, normalization.method = "LogNormalize", scale.factor = 10000)
 ```
+
 For clarity, in this previous line of code (and in future commands), we provide the default values for certain parameters in the function call. However, this isn’t required and the same behavior can be achieved with:
+
 ```{r}
 pbmc <- NormalizeData(pbmc)
 ```
-While this method of normalization is standard and widely used in scRNA-seq analysis, global-scaling relies on an assumption that each cell originally contains the same number of RNA molecules. 
+
+While this method of normalization is standard and widely used in scRNA-seq analysis, global-scaling relies on an assumption that each cell originally contains the same number of RNA molecules.
 
 SCTransform() normalization workflow is developed for alternative workflows for the single cell preprocessing that do not make these assumptions. The use of SCTransform replaces the need to run NormalizeData, FindVariableFeatures, or ScaleData (described below.)
 
-Note:
-If you're doing real research, especially with noisy, clinical, or large datasets → use SCTransform().
-If you're just learning or following tutorials like PBMC3K → NormalizeData() is fine and easier to follow.
+Note: If you're doing real research, especially with noisy, clinical, or large datasets → use SCTransform(). If you're just learning or following tutorials like PBMC3K → NormalizeData() is fine and easier to follow.
 
-Check SCTransform: https://satijalab.org/seurat/articles/sctransform_vignette 
-
+Check SCTransform: <https://satijalab.org/seurat/articles/sctransform_vignette>
 
 # Identification of highly variable features (feature selection)
+
 We next calculate a subset of features that exhibit high cell-to-cell variation in the dataset (i.e, they are highly expressed in some cells, and lowly expressed in others). Focusing on these genes in downstream analysis helps to highlight biological signal in single-cell datasets.
 
 Procedure in Seurat is described in detail here (Check their paper), and improves on previous versions by directly modeling the mean-variance relationship inherent in single-cell data, and is implemented in the FindVariableFeatures() function. By default, we return 2,000 features per dataset. These will be used in downstream analysis, like PCA.
 
-
 ```{r}
-# Note: This code chunk from Seurat v5 website couldn't result clear-spaced graph
-
 pbmc <- FindVariableFeatures(pbmc, selection.method = "vst", nfeatures = 2000)
 
 # Identify the 10 most highly variable genes
@@ -246,33 +224,31 @@ plot1 <- VariableFeaturePlot(pbmc)
 plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
 plot1 + plot2
 ```
-This VariableFeaturePlot is visualizing how much each gene varies across cells in your single-cell dataset.
-- Each dot = one gene
-- X-axis = Average expression (log scale)
-- Y-axis = Standardized variance (how much a gene's expression varies across cells)
-goal: To identify genes with the highest cell-to-cell variability, which are the most informative for downstream steps like PCA and clustering.
 
-Red dots:
-- These are the 2,000 most variable genes, selected using Seurat’s FindVariableFeatures() function
+This VariableFeaturePlot is visualizing how much each gene varies across cells in your single-cell dataset. 
+- Each dot = one gene 
+- X-axis = Average expression (log scale) 
+- Y-axis = Standardized variance (how much a gene's expression varies across cells) goal: To identify genes with the highest cell-to-cell variability, which are the most informative for downstream steps like PCA and clustering.
+
+Red dots: 
+- These are the 2,000 most variable genes, selected using Seurat’s FindVariableFeatures() function 
 - They're the ones that vary the most across cells, often because they’re cell-type-specific or biologically important.
 
-Black dots:
-- These are the rest (~11,714) — less variable genes
+Black dots: 
+- These are the rest (\~11,714) 
+— less variable genes 
 - They’re filtered out of downstream steps like PCA (to reduce noise)
 
-Labeled top 10 genes
-These are the most variable genes, likely key markers in your dataset.
-Examples from the plot:
-PPBP: typically expressed in platelets
-LYZ: marker of monocytes
-GNLY, NKG7: markers for NK and cytotoxic T cells
+Labeled top 10 genes These are the most variable genes, likely key markers in your dataset. Examples from the plot: 
+PPBP: typically expressed in platelets 
+LYZ: marker of monocytes 
+GNLY, NKG7: markers for NK and cytotoxic T cells 
 S100A9, FTL: immune response and inflammation
 
 These can hint at the types of immune cells in your PBMC sample!
 
-
 ```{r}
-# Alternative (repaired pipeline by Putri)
+# Alternative 
 
 # Load necessary library
 library(ggplot2)
@@ -304,33 +280,213 @@ ggplot(var.genes, aes(x = mean, y = variance.standardized)) +
   )
 
 ```
+
 Summary note: The plot highlights the 2,000 most variable genes (in red), which are selected for dimensionality reduction and clustering. Genes such as PPBP, LYZ, and GNLY appear among the top 10, indicating potential cell type–specific expression. Highly variable genes are essential for capturing meaningful biological variation across cells in single-cell RNA-seq analysis.
 
-
 # Scaling the data
-Next, we apply a linear transformation (‘scaling’) that is a standard pre-processing step prior to dimensional reduction techniques like PCA. The ScaleData() function:
-- Shifts the expression of each gene, so that the mean expression across cells is 0
-- Scales the expression of each gene, so that the variance across cells is 1. This step gives equal weight in downstream analyses, so that highly-expressed genes do not dominate
-- The results of this are stored in pbmc[["RNA"]]$scale.data
-- By default, only variable features are scaled.
+
+Next, we apply a linear transformation (‘scaling’) that is a standard pre-processing step prior to dimensional reduction techniques like PCA. The ScaleData() function: 
+- Shifts the expression of each gene, so that the mean expression across cells is 0 
+- Scales the expression of each gene, so that the variance across cells is 1. 
+This step gives equal weight in downstream analyses, so that highly-expressed genes do not dominate 
+- The results of this are stored in pbmc[["RNA"]]\$scale.data 
+- By default, only variable features are scaled. 
 - You can specify the features argument to scale additional features
+
 ```{r}
 all.genes <- rownames(pbmc)
 pbmc <- ScaleData(pbmc, features = all.genes)
 ```
 
 ## How can I remove unwanted sources of variation?
+
 In Seurat, we also use the ScaleData() function to remove unwanted sources of variation from a single-cell dataset. For example, we could ‘regress out’ heterogeneity associated with (for example) cell cycle stage, or mitochondrial contamination i.e.:
+
 ```{r}
 pbmc <- ScaleData(pbmc, vars.to.regress = "percent.mt")
 ```
-However, particularly for advanced users who would like to use this functionality, we strongly recommend the use of our new normalization workflow, SCTransform(). The method is described in our paper, with a separate vignette using Seurat here. As with ScaleData(), the function SCTransform() also includes a vars.to.regress parameter. -Satija Lab
 
+However, particularly for advanced users who would like to use this functionality, we strongly recommend the use of our new normalization workflow, SCTransform(). The method is described in our paper, with a separate vignette using Seurat here. As with ScaleData(), the function SCTransform() also includes a vars.to.regress parameter. -Satija Lab
 
 # Perform linear dimensional reduction
 
+Next we perform PCA on the scaled data. By default, only the previously determined variable features are used as input, but can be defined using features argument if you wish to choose a different subset (if you do want to use a custom subset of features, make sure you pass these to ScaleData first).
+
+For the first principal components, Seurat outputs a list of genes with the most positive and negative loadings, representing modules of genes that exhibit either correlation (or anti-correlation) across single-cells in the dataset.
+
+## note:
+
+PCA is a linear dimensionality reduction technique. It helps summarize large, high-dimensional datasets (like gene expression data) into fewer dimensions (principal components, or PCs), capturing the most variance.
+
+```{r}
+pbmc <- RunPCA(pbmc, features = VariableFeatures(object = pbmc))
+
+# RunPCA() performs PCA on the scaled data in pbmc object.
+# It uses the top variable genes (VariableFeatures) identified earlier to ensure the analysis focuses on the most informative genes.
+```
+
+Seurat provides several useful ways of visualizing both cells and features that define the PCA, including VizDimReduction(), DimPlot(), and DimHeatmap()
+
+```{r}
+# Examine and visualize PCA results a few different ways
+print(pbmc[["pca"]], dims = 1:5, nfeatures = 5)
+# This shows the top 5 genes (features) that contribute most positively and negatively to each PC.
+
+# output:
+# PC_ 1 
+# Positive:  CST3, TYROBP, LST1, AIF1, FTL 
+# Negative:  MALAT1, LTB, IL32, IL7R, CD2 
+# These genes define the direction of PC_1. The more a cell expresses these, the more it contributes to that axis.
+# Positive genes → strongly correlated in that direction of the PC.
+# Negative genes → strongly anti-correlated (opposite behavior).
+# Helps identify gene expression programs or cell types that explain variation in your data.
+
+# PC_ 2 
+# Positive:  CD79A, MS4A1, TCL1A, HLA-DQA1, HLA-DQB1 
+# Negative:  NKG7, PRF1, CST7, GZMA, GZMB 
+# PC_ 3 
+# Positive:  HLA-DQA1, CD79A, CD79B, HLA-DQB1, HLA-DPA1 
+# Negative:  PPBP, PF4, SDPR, SPARC, GNG11 
+# PC_ 4 
+# Positive:  HLA-DQA1, CD79B, CD79A, MS4A1, HLA-DQB1 
+# Negative:  VIM, IL7R, S100A6, S100A8, IL32 
+# PC_ 5 
+# Positive:  GZMB, FGFBP2, S100A8, NKG7, GNLY 
+# Negative:  LTB, IL7R, CKB, MS4A7, RP11-290F20.3 
+```
+
+```{r}
+VizDimLoadings(pbmc, dims = 1:2, reduction = "pca")
+
+# This function plots the loadings of genes for PCs 1 and 2.
+# It helps you see which genes are driving separation between cells in low-dimensional space.
+```
+
+Each dot in the plot represents a gene, and its horizontal position shows how strongly it contributes to that PC: X-axis: loading value (i.e., how much that gene influences PC_1 or PC_2) Y-axis: gene names
+
+There are two panels: Left panel: PC_1 Right panel: PC_2
+
+How to Interpret This? 
+PC_1: 
+Positive loadings (right side): genes like CST3, TYROBP, LST1, etc. 
+These genes are highly expressed in cells that lie in the positive direction of PC_1.
+
+Negative loadings (left side): MALAT1, LGALS3, GSTP1, etc. 
+These genes are more highly expressed in cells on the negative side of PC_1. 
+This tells you that PC_1 separates cells based on the expression of these opposing gene modules.
+
+PC_2: 
+Similar idea: genes like CD79A, MS4A1, TCL1A contribute positively, while NKG7, PRF1, CST7, GZMB contribute negatively. It likely separates B-cell markers (positive) from cytotoxic T/NK cell markers (negative).
+
+Biological Insight (Examples) 
+PC_1 seems to capture monocyte vs. lymphocyte differences: 
+Positive: Monocyte-related genes (e.g., TYROBP, FCN1, S100A9) 
+Negative: Possibly lymphoid-related genes (e.g., MALAT1, IL7R in the earlier PCA printout)
+
+PC_2 may reflect B cells vs. NK/T cells: 
+Positive: CD79A, MS4A1 → B cells 
+Negative: GZMB, PRF1, NKG7 → NK and cytotoxic T cells
+
+These loading plots help you: 
+Understand what drives variability in your dataset. 
+Associate PCs with biological processes or cell types. 
+Select genes for downstream visualization or marker identification.
+
+```{r}
+DimPlot(pbmc, reduction = "pca") + NoLegend()
+```
+
+PCA cell embedding plot Each dot is a single cell, plotted based on its coordinates along the first two principal components: 
+- X-axis = PC_1: Captures the most variance (differences) in gene expression across all cells. 
+- Y-axis = PC_2: Captures the second-most variance. 
+This is a low-dimensional summary of your high-dimensional gene expression matrix.
+
+Biological Interpretation From the shape of the plot: 
+- The cells on the right side (high PC_1) likely express genes like CST3, TYROBP, S100A9 (from earlier), suggesting myeloid or monocyte lineage. 
+- The cells on the left side (low PC_1) have negative PC_1 loadings like MALAT1, IL7R, and may represent lymphoid cells (T/NK cells). 
+- Along PC_2, cells at the top might be enriched for B cell markers (CD79A, MS4A1), while those at the bottom for cytotoxic/NK markers (GZMB, PRF1, NKG7).
+
+In particular DimHeatmap() allows for easy exploration of the primary sources of heterogeneity in a dataset, and can be useful when trying to decide which PCs to include for further downstream analyses. Both cells and features are ordered according to their PCA scores. Setting cells to a number plots the ‘extreme’ cells on both ends of the spectrum, which dramatically speeds plotting for large datasets. Though clearly a supervised analysis, we find this to be a valuable tool for exploring correlated feature sets.
+
+```{r}
+DimHeatmap(pbmc, dims = 1, cells = 500, balanced = TRUE)
+```
+
+Dimensional Heatmap 
+X-axis: 500 selected cells — these are the most "extreme" ones on both ends of PC_1 (highest and lowest scores), so they show the strongest contrast. 
+Y-axis: Genes — ordered by how strongly they load on PC_1 (from top to bottom: negative to positive loadings).
+
+Colors: Yellow: High expression Purple: Low expression
+
+How to Interpret PC_1 Heatmap? 
+You're looking at PC_1, the first and most important pattern of variability between cells. This is a supervised view to help understand what genes define PC_1. Here's what we can see: 
+Left side of the heatmap (cells with low PC_1 scores): 
+- High expression of genes like MALAT1, IL7R, CD2 → These are lymphoid markers, especially T cell related. 
+- Purple for monocyte genes like S100A9, TYROBP, CST3.
+
+Right side of the heatmap (cells with high PC_1 scores): 
+- High expression of genes like CST3, TYROBP, FCN1, S100A9 → Known monocyte/macrophage markers. 
+- Low expression of lymphoid genes.
 
 
+Biological Summary of PC_1
+Low PC_1
+Dominant gene expression: IL7R, CD2, MALAT1
+Likely cell type: T/NK cells (lymphoid)
+
+High PC_1
+Dominant gene expression: S100A9, TYROBP, CST3
+Likely cell type: Monocytes/macrophages
+
+So, PC_1 is separating lymphoid vs. myeloid lineages, with clear gene expression modules.
+
+Why this plot matters? 
+- It validates what you saw in the PCA loadings. 
+- Confirms PC_1 as a biologically meaningful axis of variation. 
+- Helps decide whether to include this PC in downstream steps like clustering or UMAP.
+
+```{r}
+DimHeatmap(pbmc, dims = 1:15, cells = 500, balanced = TRUE)
+```
+
+Dimensional heatmaps for PCs1 through 15 Each small heatmap shows the top genes driving each PC, and how their expression differs across extreme cells (those with highest and lowest scores along that PC).
+
+Which PCs Look Biologically Meaningful? 
+PC_1
+Pattern strength: Very strong split
+Interpretation: Monocytes (CST3, TYROBP) vs T cells (IL7R, CDR2)
+
+PC_2
+Clear pattern
+Cytotoxic/NK (NKG7, PRF1) vs B cells (CD79A, MS4A1)
+
+PC_3
+Good
+Involves MHC-II genes (HLA-DRA, HLA-DRB5) - antigen presentation
+
+PC_4
+Still structured
+HLA-DP, DR genes - possibly more antigen processing variation
+
+PC_5-PC_6
+Moderate clarity
+Mix of monocyte/B-cell/NK markers - may separate subtypes
+
+PC_7-PC_9
+Less distinct
+More noisy or low-variance genes; maybe subtype differences
+
+PC_10-PC_15
+Weak patterns
+Most noisy or low-expression features; likely not useful
+
+
+Which PCs should we keep?
+PCs 1-5
+
+In short: Keep PCs 1–10. Focus on PCs 1–5 for clustering and UMAP.
+
+# Determine the 'dimensionality' of the dataset
 
 
 
