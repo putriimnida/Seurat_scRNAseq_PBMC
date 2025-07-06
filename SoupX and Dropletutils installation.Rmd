@@ -1,0 +1,202 @@
+---
+title: "Installing SoupX and DropletUtils on the Cluster"
+output: html_document
+---
+
+# Overview
+
+This guide outlines how to install `SoupX` and `DropletUtils` on the cluster using source `.tar.gz` files and your personal R library directory.
+
+---
+
+# 1. Set your personal R library
+
+In any R session (locally or on the cluster), set your personal library path:
+
+```r
+.libPaths("~/library")
+```
+
+This ensures R installs packages into your user-specific directory rather than the system-wide library.
+
+---
+
+# 2. Download source packages to your local machine
+
+From your **Mac terminal**:
+
+```bash
+# Download SoupX from CRAN (archived version as example)
+curl -L -o SoupX_1.6.2.tar.gz https://cran.r-project.org/src/contrib/Archive/SoupX/SoupX_1.6.2.tar.gz
+
+# Download DropletUtils from Bioconductor
+curl -L -o DropletUtils_1.26.0.tar.gz https://bioconductor.org/packages/release/bioc/src/contrib/DropletUtils_1.26.0.tar.gz
+```
+
+> You can replace the version numbers with the latest versions if needed.
+
+---
+
+# 3. Upload the `.tar.gz` files to the cluster
+
+From your **local terminal**, upload both files to the cluster:
+
+```bash
+# Replace <username> and <cluster-address> with your own credentials
+scp SoupX_1.6.2.tar.gz <username>@<cluster-address>:~
+scp DropletUtils_1.26.0.tar.gz <username>@<cluster-address>:~
+```
+
+---
+
+# 4. Load R on the UHN cluster
+
+Once logged in to the cluster:
+
+```bash
+module load R
+R
+```
+
+Then inside the R console:
+
+```r
+.libPaths("~/library")  # Set your personal library path
+```
+
+---
+
+# 5. Install required dependencies
+
+In the R session on the cluster:
+
+```r
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+}
+
+BiocManager::install(c("rhdf5", "Rhdf5lib", "HDF5Array"), ask = FALSE)
+
+q()  # Quit R after installing
+```
+
+---
+
+# 6. Install SoupX and DropletUtils from source
+
+Back in the shell (not inside R):
+
+```bash
+R CMD INSTALL ~/SoupX_1.6.2.tar.gz --library=~/library
+R CMD INSTALL ~/DropletUtils_1.26.0.tar.gz --library=~/library
+```
+
+---
+
+# 7. Confirm installation
+
+Open a new R session:
+
+```bash
+module load R
+R
+```
+
+Then check if the packages load:
+
+```r
+.libPaths("~/library")
+library(SoupX)
+library(DropletUtils)
+```
+
+---
+
+# Done!
+
+You're now ready to use `SoupX` and `DropletUtils` in your single-cell RNA-seq pipeline on the cluster.
+
+
+
+Optional:
+# Installing SoupX and DropletUtils via Conda on macOS"
+This guide provides instructions for installing `SoupX` and `DropletUtils` using Conda on macOS. This method is helpful when installing packages with system-level dependencies (e.g., HDF5, zlib) or when avoiding conflicts with system R.
+
+---
+
+# 1. Install Miniconda (if not already installed)
+
+Check if Conda is installed:
+
+```bash
+conda --version
+```
+
+If not, download and install Miniconda for macOS:  
+https://docs.conda.io/en/latest/miniconda.html
+
+> Tip: You can also use [Mamba](https://github.com/mamba-org/mamba) for faster dependency resolution.
+
+---
+
+# 2. Create a new Conda environment with R
+
+```bash
+conda create -n scRNAseq_env r-base=4.2 r-essentials
+conda activate scRNAseq_env
+```
+
+You can replace `4.2` with your required R version.
+
+---
+
+# 3. Install SoupX and DropletUtils
+
+```bash
+# DropletUtils from Bioconductor
+conda install -c bioconda bioconductor-dropletutils
+
+# SoupX (if available)
+conda install -c conda-forge r-soupx
+```
+
+> If `r-soupx` is not available via Conda, install it manually from CRAN:
+```bash
+Rscript -e 'install.packages("SoupX", repos="https://cran.r-project.org")'
+```
+
+---
+
+# 4. Launch R and verify installation
+
+```bash
+R
+```
+
+Then in R:
+
+```r
+library(SoupX)
+library(DropletUtils)
+```
+
+If both libraries load without error, the installation is successful.
+
+---
+
+# Done!
+
+You now have a self-contained Conda environment with `SoupX` and `DropletUtils`.
+
+---
+
+# Optional: Use Jupyter or RStudio inside the same environment
+
+To install RStudio or R notebook support:
+
+```bash
+conda install -c conda-forge r-irkernel rstudio
+```
+
+You can now run R in JupyterLab or launch RStudio from the same Conda environment.
+
